@@ -1,0 +1,121 @@
+{
+    parserClass="me.jacobtread.v.plugin.VParser"
+    extends="com.intellij.extapi.psi.ASTWrapperPsiElement"
+
+    psiClassPrefix="V"
+    psiImplClassSuffix="Impl"
+    psiPackage="me.jacobtread.v.plugin.psi"
+    psiImplPackage="me.jacobtread.v.plugin.psi.impl"
+
+    elementTypeHolderClass="me.jacobtread.v.plugin.psi.VTypeHolder"
+    elementTypeClass="me.jacobtread.v.plugin.psi.VElementType"
+    tokenTypeClass="me.jacobtread.v.plugin.psi.VTokenType"
+
+    tokens=[
+        OP_EQ="="
+        OP_DECLARE=":="
+        OP_ORR="||"
+        OP_OR="|"
+        OP_ANDD="&&"
+        OP_AND="&"
+        OP_OPT="?"
+        OP_ADD="+"
+        OP_MULT="*"
+        OP_NOT="!"
+        COMMA=","
+        COLON=":"
+        OPEN_BRACE="{"
+        CLOSE_BRACE="}"
+        OPEN_BRACKET="["
+        CLOSE_BRACKET="]"
+        OPEN_PAREN="("
+        CLOSE_PAREN=")"
+        OPEN_GENERIC="<"
+        CLOSE_GENERIC=">"
+        ARRAY_APPEND="<<"
+
+        WHITE_SPACE='regexp:\s+'
+        IDENTIIFIER="regexp:[a-zA-Z_][a-zA-Z0-9_]*"
+        STRING="regexp:[r]?((?<![\\])['\"])((?:.(?!(?<![\\])\1))*.?)\1"
+        RUNE="regexp:`[^`]`"
+        NUMBER="regexp:-?(\d+\.)?(\d+\.)?(\*|\d+)"
+        LINE_COMMENT="regexp://.*"
+        BLOCK_COMMENT="regexp:/\*(\*(?!/)|[^*])*\*/"
+
+        KEYWORDS="regexp:(assert|as|asm|atomic|break|const|continue|defer|else|embed|enum|false|fn|for|goto|go|if|import|interface|in|is|lock|match|module|mut|none|or|pub|return|rlock|select|shared|sizeof|static|struct|true|typeof|type|union|unsafe|__offsetof)"
+        OPERATORS="regexp:[+\-*/%~&|^!<>]+"
+    ]
+}
+
+vFile ::= item_*
+
+COMMENT ::= BLOCK_COMMENT|LINE_COMMENT
+private item_ ::= COMMENT
+|MODULE
+|IMPORT
+|EXPRESSION
+|EOF
+
+PATH_IDENTIFIER ::= IDENTIIFIER ('.' IDENTIIFIER) *
+
+MODULE_NAME ::= IDENTIIFIER
+MODULE ::= 'module' MODULE_NAME
+
+IMPORT_NAME ::= PATH_IDENTIFIER
+IMPORT_VALUE ::= IDENTIIFIER
+IMPORT_VALUES ::= IMPORT_VALUE (',' IMPORT_VALUE)*
+IMPORT ::= 'import' IMPORT_NAME [ OPEN_BRACE [IMPORT_VALUES] CLOSE_BRACE]
+
+BOOLEAN_VALUE ::= 'true' | 'false'
+PRIMITIVE_VALUE ::= STRING | RUNE | NUMBER | BOOLEAN_VALUE
+VALUE ::= PRIMITIVE_VALUE|ARRAY_VALUE
+
+PRIMITIVE_TYPE ::= 'bool'
+|'string' | 'rune'
+|'i8'|'i16'
+|'int'|'i64'
+|'byte'|'u16'
+|'u32'|'u64'
+|'f32'|'f64'
+|'voidptr'
+|'size_t'|'any'
+
+TYPE ::= PRIMITIVE_TYPE|STRUCT_NAME|ARRAY_TYPE
+
+MUT_MODIFIER ::= 'mut'
+GLOBAL_VISIBILITY ::= '__global'
+PUB_VISIBILITY ::= 'pub'
+MODIFIER ::= (PUB_VISIBILITY MUT_MODIFIER) | MUT_MODIFIER | PUB_VISIBILITY | GLOBAL_VISIBILITY
+
+// ARRAY AND ITS VALUES
+ARRAY_VALUES_CHILD ::= PRIMITIVE_VALUE
+ARRAY_VALUES ::= ARRAY_VALUES_CHILD (',' ARRAY_VALUES_CHILD)* {recoverWhile="ARRAY_VALUES_RECOVER"}
+private ARRAY_VALUES_RECOVER ::= !(CLOSE_BRACKET)
+ARRAY_VALUE ::= OPEN_BRACKET [ ARRAY_VALUES ] CLOSE_BRACKET [TYPE ARRAY_VALUE_TYPE] {pin=1}
+
+// ARRAY TYPE AND ITS PROPERTIES
+ARRAY_TYPE_PROPERTY_NAME ::= IDENTIIFIER
+ARRAY_TYPE_PROPERTY ::= ARRAY_TYPE_PROPERTY_NAME COLON VALUE
+ARRAY_TYPE_PROPERTIES ::= ARRAY_TYPE_PROPERTY (',' ARRAY_TYPE_PROPERTY)* {recoverWhile="ARRAY_TYPE_PROPERTIES_RECOVER"}
+private ARRAY_TYPE_PROPERTIES_RECOVER ::= !(CLOSE_BRACE)
+ARRAY_VALUE_TYPE ::= OPEN_BRACE [ARRAY_TYPE_PROPERTIES] CLOSE_BRACE {pin=1}
+ARRAY_TYPE ::= OPEN_BRACKET CLOSE_BRACKET TYPE
+
+VARIABLE_NAME ::= IDENTIIFIER
+VARIABLE_DECLARE ::= [MUT_MODIFIER] VARIABLE_NAME OP_DECLARE VALUE
+VARIABLE_ASSIGN ::= VARIABLE_NAME OP_EQ VALUE
+
+GENERIC_VALUE ::= IDENTIIFIER
+GENERIC_TYPE ::= '<' GENERIC_VALUE '>'
+
+STRUCT_NAME ::= IDENTIIFIER
+STRUCT_PROPERTY_NAME ::= IDENTIIFIER
+STRUCT_PROPERTY_REQUIRED ::= OPEN_BRACKET 'required' CLOSE_BRACKET
+STRUCT_PROPERTY ::= [MODIFIER] STRUCT_PROPERTY_NAME TYPE [STRUCT_PROPERTY_REQUIRED] [OP_EQ VALUE]
+STRUCT_MODIFIER_BLOCK ::= MODIFIER COLON
+STRUCT_DECLARE ::= 'struct' STRUCT_NAME [GENERIC_TYPE] OPEN_BRACE (STRUCT_MODIFIER_BLOCK|STRUCT_PROPERTY)* CLOSE_BRACE
+
+
+EXPRESSION ::= VARIABLE_DECLARE
+|VARIABLE_ASSIGN
+|STRUCT_DECLARE

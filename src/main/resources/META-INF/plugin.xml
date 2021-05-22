@@ -1,19 +1,13 @@
 <idea-plugin>
-    <id>org.jetbrains.plugins.template</id>
-    <name>Template</name>
-    <vendor>JetBrains</vendor>
-
-    <!-- Product and plugin compatibility requirements -->
-    <!-- https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
+    <id>me.jacobtread.v.plugin</id>
+    <name>V Lang</name>
+    <vendor>Jacobtread</vendor>
     <depends>com.intellij.modules.platform</depends>
-
     <extensions defaultExtensionNs="com.intellij">
-        <applicationService serviceImplementation="org.jetbrains.plugins.template.services.MyApplicationService"/>
-        <projectService serviceImplementation="org.jetbrains.plugins.template.services.MyProjectService"/>
+        <fileType
+                name="V File" implementationClass="me.jacobtread.v.plugin.VFileType"
+                fieldName="INSTANCE" language="V" extensions="v"/>
+        <moduleType id="VModule" implementationClass="me.jacobtread.v.plugin.module.VModuleType"/>
+        <moduleBuilder builderClass="me.jacobtread.v.plugin.module.VModuleBuilder"/>
     </extensions>
-
-    <applicationListeners>
-        <listener class="org.jetbrains.plugins.template.listeners.MyProjectManagerListener"
-                  topic="com.intellij.openapi.project.ProjectManagerListener"/>
-    </applicationListeners>
 </idea-plugin>

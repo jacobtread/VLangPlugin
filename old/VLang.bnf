@@ -1,0 +1,205 @@
+{
+    parserClass="me.jacobtread.plugins.vlang.parser.VParser"
+
+    extends="com.intellij.extapi.psi.ASTWrapperPsiElement"
+    psiClassPrefix="V"
+    psiImplClassSuffix="Impl"
+    psiPackage="me.jacobtread.plugins.vlang.psi"
+    psiImplPackage="me.jacobtread.plugins.vlang.psi.impl"
+    tokens=[
+           OP_EQUAL="="
+           OP_ASSIGN=":="
+           OP_OR="||"
+           OP_PIPE="|"
+           OP_REF="&"
+           OP_AND="&&"
+           OP_OPT="?"
+           OP_ADD="+"
+           OP_TIMES="*"
+           OP_NOT="!"
+           COMMA=","
+           COLON=":"
+           OPEN_BRACE="{"
+           CLOSE_BRACE="}"
+           OPEN_BRACKET="["
+           CLOSE_BRACKET="]"
+           OPEN_PAREN="("
+           CLOSE_PAREN=")"
+           OPEN_GENERIC="<"
+           CLOSE_GENERIC=">"
+           ARRAY_APPEND="<<"
+
+           WHITE_SPACE='regexp:\s+'
+           ID="regexp:[a-zA-Z_][a-zA-Z0-9_]*"
+
+           STRING="regexp:[r]?((?<![\\])['\"])((?:.(?!(?<![\\])\1))*.?)\1"
+//           STRING="regexp:('([^'\\]|\\.)*'|\"([^\"\\]|\\.)*\")"
+           RUNE="regexp:`.`"
+           NUMBER="regexp:(\d+\.)?(\d+\.)?(\*|\d+)"
+           LINE_COMMENT="regexp://.*"
+           BLOCK_COMMENT="regexp:/\*(\*(?!/)|[^*])*\*/"
+    ]
+    elementTypePrefix="V_"
+    elementTypeHolderClass="me.jacobtread.plugins.vlang.psi.VTypeHolder"
+    elementTypeClass="me.jacobtread.plugins.vlang.psi.VElementType"
+    tokenTypeClass="me.jacobtread.plugins.vlang.psi.VTokenType"
+}
+
+vFile ::= item_*
+COMMENT ::= BLOCK_COMMENT|LINE_COMMENT
+private item_ ::= COMMENT|IMPORT|MODULE|STRUCT|INTERFACE|EXPR|EOL
+
+KEYWORDS ::= 'as'|'asm'|'assert'
+|'atomic'|'break'|'const'|'continue'
+|'defer'|'else'|'embed'|'enum'|'false'
+|'fn'|'for'|'go'|'goto'|'if'|'import'
+|'in'|'interface'|'is'|'lock'|'match'
+|'module'|'mut'|'none'|'or'|'pub'
+|'return'|'rlock'|'select'|'shared'
+|'sizeof'|'static'|'struct'|'true'
+|'type'|'typeof'|'union'|'unsafe'
+|'__offsetof'
+
+OPERATORS ::= '+'|'-'|'*'|'/'|'%'|'~'|'&'|'|'|'^'
+|'!'|'&&'|'||'|'!='|'<<'|'>>'
+
+ALT_OPERATORS ::= '+=' | '-=' | '/=' | '*='
+
+IDENTIFIER ::= !(KEYWORDS|OPERATORS)ID
+
+PATH_IDENTIFIER ::= IDENTIFIER ('.' IDENTIFIER)*
+
+EXPRESSION_NAME ::= ('.')? PATH_IDENTIFIER
+MODULE_NAME ::= PATH_IDENTIFIER
+
+GENERIC_EXPR ::= OPEN_GENERIC IDENTIFIER CLOSE_GENERIC
+
+TYPE_PRIMITIVE ::='bool'
+|'string' | 'rune'
+|'i8'|'i16'
+|'int'|'i64'
+|'byte'|'u16'
+|'u32'|'u64'
+|'f32'|'f64'
+|'voidptr'
+|'size_t'|'any'
+
+ARRAY_OPERATION ::= EXPRESSION_NAME (ARRAY_APPEND VALUE)|((EXPRESSION_NAME|STRING) OPEN_BRACKET VALUE CLOSE_BRACKET)
+
+// Variable types
+TYPE_STRUCT ::= OP_REF? MODULE_NAME GENERIC_EXPR?
+TYPE_ARRAY ::= (TYPE_PRIMITIVE|TYPE_STRUCT) (OPEN_BRACE PROPERTIES_COMMA? CLOSE_BRACE)+
+TYPE_FUNC ::= FUNC_KEYWORD OPEN_PAREN ARG_TYPES? CLOSE_PAREN RETURN_TYPE?
+V_TYPE ::= '...'? OP_OPT? TYPE_PRIMITIVE|TYPE_STRUCT|TYPE_ARRAY|TYPE_FUNC
+// Multiple types are divided by commas
+TYPES_LIST ::= V_TYPE (COMMA V_TYPE)*
+
+VIS_MOD ::= 'pub'
+MUT_MOD ::= 'mut'
+
+VALUE_BOOL ::=  'true' | 'false'
+VALUE_STRUCT ::= STRUCT_NAME GENERIC_EXPR? OPEN_BRACE PROPERTIES? CLOSE_BRACE
+VALUE_ARRAY ::= OPEN_BRACKET (VALUE (COMMA VALUE)*)? CLOSE_BRACKET TYPE_ARRAY?
+BASE_VALUE ::= (VALUE_BOOL|ARRAY_OPERATION|STRING
+|NUMBER|RUNE|TYPE_CAST
+|VALUE_STRUCT|FUNC_CALL|EXPRESSION_NAME
+|VALUE_ARRAY
+) PROPERTY_ACCESS?
+
+VALUE ::= COND_EXPRS|BASE_VALUE
+
+VALUE_OR_EXPR ::= MAP_EXPR|OP_EXPR|VALUE
+VALUE_OR_FUNC ::= VALUE_OR_EXPR|ANON_FUNC
+
+NAME_OR_VALUE ::= VAR_NAME|VALUE
+
+PROPERTY ::= (IDENTIFIER|VALUE) COLON VALUE
+PROPERTIES ::= PROPERTY PROPERTY*
+PROPERTIES_COMMA ::= PROPERTY (COMMA PROPERTY)*
+PROPERTY_ACCESS ::= '.' (VALUE_OR_FUNC)
+
+// Variables
+VAR_NAME ::= ARRAY_OPERATION|IDENTIFIER
+VAR_DECLARE ::= VIS_MOD? MUT_MOD? VAR_NAME OP_ASSIGN VALUE_OR_EXPR
+VAR_ASSIGN ::= VAR_NAME (COMMA VAR_NAME)* OP_EQUAL VALUE_OR_EXPR (COMMA VALUE_OR_EXPR)*
+
+// Arg Types
+ARG_NAME ::= IDENTIFIER
+ARG_TYPE ::= MUT_MOD? ARG_NAME V_TYPE
+ARG_TYPES ::= ARG_TYPE (COMMA ARG_TYPE)*
+ARGS ::= VALUE_OR_FUNC (COMMA VALUE_OR_FUNC)*
+
+// Functions
+RETURN_TYPE ::= (OPEN_PAREN TYPES_LIST CLOSE_PAREN)|V_TYPE
+FUNC_NAME ::= EXPRESSION_NAME
+FUNC_KEYWORD ::= 'fn'
+FUNC ::= VIS_MOD? FUNC_KEYWORD (OPEN_PAREN ARG_TYPES? CLOSE_PAREN)? FUNC_NAME? OPEN_PAREN ARG_TYPES? CLOSE_PAREN RETURN_TYPE? BLOCK?
+FUNC_CALL ::= FUNC_NAME GENERIC_EXPR? OPEN_PAREN ARGS? CLOSE_PAREN
+ANON_FUNC ::= FUNC_KEYWORD OPEN_PAREN ARG_TYPES? CLOSE_PAREN RETURN_TYPE? BLOCK
+
+// Structs struct Name { value string }
+STRUCT_NAME ::= IDENTIFIER
+STRUCT_EXTEND ::= STRUCT_NAME
+STRUCT ::= 'struct' STRUCT_NAME GENERIC_EXPR? OPEN_BRACE
+
+                    (STRUCT_EXTEND)?
+                    (MUT_MOD? VIS_MOD? ARG_TYPE? IDENTIFIER) *
+
+           CLOSE_BRACE
+
+// Interface
+INTERFACE_NAME ::= IDENTIFIER
+INTERFACE_FUNC ::= FUNC_NAME? OPEN_PAREN ARG_TYPES? CLOSE_PAREN RETURN_TYPE?
+INTERFACE ::= 'interface' INTERFACE_NAME OPEN_BRACE ARG_TYPE* INTERFACE_FUNC* CLOSE_BRACE
+
+// Conditional Operations
+COND_OPERATOR ::= '='|'=='|'!='|'<='|'>='|'<'|'>'|'is'|'in' |'!is'
+COND_EXPR ::= OPEN_PAREN? (BASE_VALUE COND_OPERATOR BASE_VALUE)|VALUE_BOOL CLOSE_PAREN?
+COND_EXPR_JOINER ::= OP_AND | OP_OR
+COND_EXPRS ::= COND_EXPR (COND_EXPR_JOINER COND_EXPR)*
+COND_IF_EXPR ::= 'if' COND_EXPRS BLOCK COND_IF_ELSE_EXPR* COND_ELSE_EXPR?
+COND_IF_ELSE_EXPR ::= 'else if' COND_EXPRS BLOCK
+COND_ELSE_EXPR ::=  'else' BLOCK
+
+OP_EXPR ::= (VALUE|IDENTIFIER) (OPERATORS (VALUE|IDENTIFIER))*
+
+// Import
+IMPORT ::= 'import' MODULE_NAME ((OPEN_BRACE EXPRESSION_NAME (COMMA EXPRESSION_NAME)* CLOSE_BRACE) | ('as' MODULE_NAME) | ())
+// Module
+MODULE ::= 'module' MODULE_NAME
+// Assert
+ASSERT ::= 'assert' COND_EXPRS
+
+TYPE_NAME ::= IDENTIFIER
+TYPE_STM ::= 'type' TYPE_NAME OP_EQUAL V_TYPE (OP_PIPE V_TYPE)*
+
+// Map creation
+MAP_PROPERTY ::= VALUE COLON VALUE
+MAP_EXPR ::= 'map' OPEN_BRACE (MAP_PROPERTY*) CLOSE_BRACE
+
+// Alt express
+ALT_EXPR ::= NAME_OR_VALUE ALT_OPERATORS (NAME_OR_VALUE|OP_EXPR)
+
+// Return statements
+RETURN_STM ::= 'return' VALUE_OR_FUNC (COMMA VALUE_OR_FUNC)*
+
+MATCH_BLOCK ::= VALUE_OR_EXPR BLOCK
+MATCH_EXPR ::= 'match' VALUE OPEN_BRACE MATCH_BLOCK* CLOSE_BRACE
+
+// Expressions
+EXPR ::= COMMENT|VAR_DECLARE
+|VAR_ASSIGN
+|FUNC
+|FUNC_CALL
+|COND_IF_EXPR
+|ARRAY_OPERATION
+|ASSERT
+|MAP_EXPR
+|ALT_EXPR
+|OP_EXPR
+|RETURN_STM
+|TYPE_STM
+|MATCH_EXPR
+
+// Block of expressions
+BLOCK ::= OPEN_BRACE EXPR* CLOSE_BRACE
